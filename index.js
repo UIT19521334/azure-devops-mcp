@@ -578,5 +578,81 @@ server.tool(
   }
 );
 
+server.tool(
+  "update-comment",
+  "Update/edit an existing comment on a work item on Azure DevOps (DigiFY2025 / DIGI STD FY26)",
+  {
+    id: z.number().describe("Work item ID that owns the comment (required)"),
+    commentId: z.number().describe("ID of the comment to update (required)"),
+    text: z.string().describe("New comment text. Supports HTML (required)"),
+  },
+  async ({ id, commentId, text }) => {
+    const url = `https://dev.azure.com/${ORG}/${encodeURIComponent(PROJECT)}/_apis/wit/workItems/${id}/comments/${commentId}?api-version=${COMMENTS_API_VERSION}`;
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: getAuthHeader(),
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        content: [{ type: "text", text: `Error ${response.status}: ${JSON.stringify(result, null, 2)}` }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Comment #${commentId} on work item #${id} updated!\nBy: ${result.modifiedBy?.displayName || result.createdBy?.displayName || "unknown"}\nModified: ${result.modifiedDate || result.createdDate}\nText: ${result.text}`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "delete-comment",
+  "Delete a comment from a work item on Azure DevOps (DigiFY2025 / DIGI STD FY26)",
+  {
+    id: z.number().describe("Work item ID that owns the comment (required)"),
+    commentId: z.number().describe("ID of the comment to delete (required)"),
+  },
+  async ({ id, commentId }) => {
+    const url = `https://dev.azure.com/${ORG}/${encodeURIComponent(PROJECT)}/_apis/wit/workItems/${id}/comments/${commentId}?api-version=${COMMENTS_API_VERSION}`;
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Authorization: getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      let detail;
+      try {
+        detail = JSON.stringify(await response.json(), null, 2);
+      } catch {
+        detail = await response.text();
+      }
+      return {
+        content: [{ type: "text", text: `Error ${response.status}: ${detail}` }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: `Comment #${commentId} deleted from work item #${id}.` }],
+    };
+  }
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
