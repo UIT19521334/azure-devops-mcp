@@ -487,6 +487,131 @@ server.tool(
   }
 );
 
+server.tool(
+  "create-task",
+  "Create a Task on Azure DevOps (DigiFY2025 / DIGI STD FY26), optionally linked under a parent PBI.",
+  {
+    title: z.string().describe("Title of the Task (required)"),
+    description: z.string().optional().describe("Description of the Task"),
+    assignedTo: z.string().optional().describe("Email of the assignee (e.g. user@japfa.com)"),
+    areaPath: z.string().optional().describe("Area path, e.g. 'DIGI STD FY26\\\\05. RnD'. Defaults to 'DIGI STD FY26\\\\05. RnD' if not provided"),
+    iterationPath: z.string().optional().describe("Sprint path, e.g. 'DIGI STD FY26\\\\Sprint 13 (Jun 22 - Jul 4)'. Auto-detected from current date if not provided"),
+    parentId: z.number().optional().describe("Parent work item ID (usually a PBI) to link this Task under"),
+    remainingWork: z.number().optional().describe("Remaining work in hours"),
+    activity: z.string().optional().describe("Activity type (e.g. 'Development', 'Testing', 'Design', 'Documentation')"),
+    priority: z.number().optional().describe("Priority (1=Critical, 2=High, 3=Medium, 4=Low)"),
+  },
+  async ({ title, description, assignedTo, areaPath, iterationPath, parentId, remainingWork, activity, priority }) => {
+    const resolvedAreaPath = areaPath || DEFAULT_AREA_PATH;
+    const resolvedIterationPath = iterationPath || getCurrentSprint();
+
+    const body = [
+      { op: "add", path: "/fields/System.Title", value: title },
+      { op: "add", path: "/fields/System.AreaPath", value: resolvedAreaPath },
+      { op: "add", path: "/fields/System.IterationPath", value: resolvedIterationPath },
+    ];
+
+    if (description) {
+      body.push({ op: "add", path: "/fields/System.Description", value: description });
+    }
+    if (assignedTo) {
+      body.push({ op: "add", path: "/fields/System.AssignedTo", value: assignedTo });
+    }
+    if (remainingWork !== undefined) {
+      body.push({ op: "add", path: "/fields/Microsoft.VSTS.Scheduling.RemainingWork", value: remainingWork });
+    }
+    if (activity) {
+      body.push({ op: "add", path: "/fields/Microsoft.VSTS.Common.Activity", value: activity });
+    }
+    if (priority) {
+      body.push({ op: "add", path: "/fields/Microsoft.VSTS.Common.Priority", value: priority });
+    }
+    if (parentId) {
+      body.push({
+        op: "add",
+        path: "/relations/-",
+        value: {
+          rel: "System.LinkTypes.Hierarchy-Reverse",
+          url: `https://dev.azure.com/${ORG}/_apis/wit/workItems/${parentId}`,
+          attributes: { comment: "Parent link" },
+        },
+      });
+    }
+
+    const url = `${getBaseUrl()}/$Task?api-version=${API_VERSION}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json-patch+json",
+        Authorization: getAuthHeader(),
+      },
+      body: JSON.stringify(body),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        content: [{ type: "text", text: `Error ${response.status}: ${JSON.stringify(result, null, 2)}` }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Task created successfully!\nID: ${result.id}\nTitle: ${result.fields["System.Title"]}\nArea: ${resolvedAreaPath}\nSprint: ${resolvedIterationPath}${parentId ? `\nParent: #${parentId}` : ""}\nURL: ${result._links?.html?.href || `https://dev.azure.com/${ORG}/${encodeURIComponent(PROJECT)}/_workitems/edit/${result.id}`}`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "delete-work-item",
+  "Delete a work item (PBI, Task, Bug, etc.) on Azure DevOps (DigiFY2025 / DIGI STD FY26). By default moves it to the Recycle Bin; set destroy=true to permanently delete (cannot be undone).",
+  {
+    id: z.number().describe("Work item ID to delete (required)"),
+    destroy: z.boolean().optional().describe("If true, permanently destroy the work item (cannot be recovered). Default false = move to Recycle Bin."),
+  },
+  async ({ id, destroy }) => {
+    const url = `https://dev.azure.com/${ORG}/${encodeURIComponent(PROJECT)}/_apis/wit/workitems/${id}?api-version=${API_VERSION}${destroy ? "&destroy=true" : ""}`;
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Authorization: getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      let detail;
+      try {
+        detail = JSON.stringify(await response.json(), null, 2);
+      } catch {
+        detail = await response.text();
+      }
+      return {
+        content: [{ type: "text", text: `Error ${response.status}: ${detail}` }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: destroy
+            ? `Work item #${id} was permanently destroyed (not recoverable).`
+            : `Work item #${id} was moved to the Recycle Bin. It can be restored from Azure DevOps if needed.`,
+        },
+      ],
+    };
+  }
+);
+
 // Comments use a dedicated API with a preview api-version
 const COMMENTS_API_VERSION = "7.1-preview.4";
 

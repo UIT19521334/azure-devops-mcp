@@ -69,8 +69,10 @@ Add the server to your MCP client config (e.g. `.kiro/settings/mcp.json`):
 | Tool | Description |
 | --- | --- |
 | `create-pbi` | Create a Product Backlog Item. Auto-detects the current sprint and defaults the area path. Supports title, description, acceptance criteria, assignee, area/iteration path, start/target dates, and a parent link. |
-| `read-pbi` | Read full details of a work item by ID, including parent/child relations. |
-| `update-pbi` | Update fields of an existing work item (title, description, state, priority, dates, tags, etc.). |
+| `create-task` | Create a Task, optionally linked under a parent PBI. Supports title, description, assignee, area/iteration path, remaining work, activity, and priority. Auto-detects the current sprint. |
+| `read-pbi` | Read full details of any work item by ID (PBI or Task), including parent/child relations. |
+| `update-pbi` | Update fields of any existing work item (title, description, state, priority, dates, tags, etc.). Works for both PBIs and Tasks. |
+| `delete-work-item` | Delete any work item by ID. Moves to the Recycle Bin by default; set `destroy: true` to permanently delete (cannot be undone). |
 | `list-my-pbis` | List work items assigned to you (via the PAT) that are not Done/Closed/Removed. |
 | `list-pbis` | Search/list work items using filters (text, state, assignee, iteration, area) or a raw WIQL query. |
 
