@@ -1,0 +1,14 @@
+{
+  "name": "azure-devops-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for creating PBI on Azure DevOps",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.12.1",
+    "dotenv": "^17.4.2"
+  }
+}
